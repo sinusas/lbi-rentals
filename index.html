@@ -495,14 +495,13 @@ function fbHtml(item) {
   const fmt = ts => new Date(ts).toLocaleDateString(undefined, { month: "short", day: "numeric" });
   return `<div class="fb-bar">
       <button type="button" class="fb-vote${mine ? " on" : ""}" data-act="vote">👍 ${votes.length || ""}<span>${mine ? "Voted" : "Vote"}</span></button>
-      <button type="button" class="fb-toggle" data-act="toggle">💬 ${comments.length || ""}<span>${open ? "Hide" : comments.length ? "Comments" : "Comment"}</span></button>
+      <button type="button" class="fb-toggle" data-act="toggle">💬<span>${open ? "Cancel" : "Comment"}</span></button>
       ${votes.length ? `<span class="fb-who">${votes.map(v => esc(v.name)).join(", ")}</span>` : ""}
     </div>
-    ${open ? `<div class="fb-panel">
-      ${comments.map(c => `<div class="fb-c"><b>${esc(c.name)}</b> <span class="sub">${fmt(c.ts)}</span><div>${esc(c.text)}</div></div>`).join("")
-        || '<div class="sub">No comments yet.</div>'}
-      <textarea rows="2" maxlength="1000" placeholder="Add a comment…"></textarea>
-      <button type="button" class="fb-post" data-act="post">Post</button>
+    ${comments.length || open ? `<div class="fb-panel">
+      ${comments.map(c => `<div class="fb-c"><b>${esc(c.name)}</b> <span class="sub">${fmt(c.ts)}</span><div>${esc(c.text)}</div></div>`).join("")}
+      ${open ? `<textarea rows="2" maxlength="1000" placeholder="Add a comment…"></textarea>
+      <button type="button" class="fb-post" data-act="post">Post</button>` : ""}
     </div>` : ""}`;
 }
 
@@ -545,7 +544,11 @@ function fbClick(e) {
   const box = e.target.closest(".fb[data-item]");
   if (!btn || !box) return;
   const item = box.dataset.item, act = btn.dataset.act;
-  if (act === "toggle") { fbOpen.has(item) ? fbOpen.delete(item) : fbOpen.add(item); return renderFeedback(); }
+  if (act === "toggle") {
+    fbOpen.has(item) ? fbOpen.delete(item) : fbOpen.add(item);
+    renderFeedback();
+    return box.querySelector("textarea")?.focus();
+  }
   if (needName()) return;
   if (act === "vote") {
     const me = myName().toLowerCase();
@@ -560,6 +563,7 @@ function fbClick(e) {
     const ta = box.querySelector("textarea"), text = ta.value.trim();
     if (!text) return ta.focus();
     ta.value = ""; btn.disabled = true;
+    fbOpen.delete(item);
     fbCall({ action: "comment", item, name: myName(), text });
   }
 }
