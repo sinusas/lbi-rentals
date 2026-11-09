@@ -46,8 +46,14 @@ for opt in sorted({h["opt"] for h in houses}):
     pairs += itertools.combinations([h for h in houses if h["opt"] == opt], 2)
 pairs += [(h, p) for h in houses for p in pois if not p["for"] or p["for"] == h["opt"]]
 
+old = {}
+m = re.search(r"const ROUTES = (\{.*?\});\n// ROUTES:END", src, re.S)
+if m: old = json.loads(m.group(1))
 routes = {}
 for a, b in pairs:
+    k = f"{a['id']}|{b['id']}"
+    if k in old and "bike" in old[k] and "--refresh" not in __import__("sys").argv:
+        routes[k] = old[k]; continue
     dist, dur, geom = route(FOOT, a, b)
     entry = {"m": round(dist), "min": max(1, round(dur / 60)), "path": geom}
     bd, bt, _ = route(BIKE, a, b)
