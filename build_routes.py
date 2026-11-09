@@ -3,11 +3,14 @@
 from every house to every point of interest, and bake them into index.html
 between the ROUTES:BEGIN / ROUTES:END markers.
 
-Rerun after adding or moving a house or POI:  python3 build_routes.py
+Rerun after adding or moving a house or POI:  python3 build_routes.py [ai/index.html]
 """
 import json, re, time, urllib.request, itertools, pathlib
 
-HTML = pathlib.Path(__file__).with_name("index.html")
+import sys
+# Page to update: index.html next to this script, or a path given as the first argument (e.g. ai/index.html)
+_args = [x for x in sys.argv[1:] if not x.startswith("--")]
+HTML = pathlib.Path(_args[0]) if _args else pathlib.Path(__file__).with_name("index.html")
 FOOT = "https://routing.openstreetmap.de/routed-foot/route/v1/driving/"
 CAR = "https://routing.openstreetmap.de/routed-car/route/v1/driving/"
 BIKE = "https://routing.openstreetmap.de/routed-bike/route/v1/driving/"

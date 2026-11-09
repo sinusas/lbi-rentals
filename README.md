@@ -2,8 +2,9 @@
 
 Map of rental options in Beach Haven and Holgate (Long Beach Island, NJ) for the week of Aug 7–14, 2027.
 
-- `index.html` is the whole site. House details are in the `HOUSES` list near the top of the script.
-- `build_routes.py` refetches the walking/bike/drive routes (OpenStreetMap routing) after you add or move a house or point of interest: `python3 build_routes.py`
+- `index.html` is the main page (Sarah's picks). `ai/index.html` is a separate page at `/lbi-rentals/ai/` that adds the A.I.'s (unchecked) search results; it is not linked from the main page.
+- Each page is self-contained. House details are in the `HOUSES` list near the top of the script.
+- `build_routes.py` refetches the walking/bike/drive routes (OpenStreetMap routing) after you add or move a house or point of interest: `python3 build_routes.py` (or `python3 build_routes.py ai/index.html` for the A.I. page)
 
 ## Votes & comments setup (one time)
 
