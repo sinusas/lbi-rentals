@@ -19,7 +19,9 @@ def places(block_name):
     block = re.search(rf"const {block_name} = \[(.*?)\n\];", src, re.S).group(1)
     out = []
     for m in re.finditer(r'id: "([^"]+)".*?(?:option: "([A-Z])".*?)?lat: ([\d.-]+), lng: ([\d.-]+)', block, re.S):
-        out.append({"id": m[1], "opt": m[2], "lat": float(m[3]), "lng": float(m[4])})
+        line_end = block.find("\n", m.start())
+        only = re.search(r'for: "([A-Z])"', block[m.start():line_end])
+        out.append({"id": m[1], "opt": m[2], "for": only and only[1], "lat": float(m[3]), "lng": float(m[4])})
     return out
 
 houses, pois = places("HOUSES"), places("POIS")
@@ -42,7 +44,7 @@ def route(base, a, b):
 pairs = []
 for opt in sorted({h["opt"] for h in houses}):
     pairs += itertools.combinations([h for h in houses if h["opt"] == opt], 2)
-pairs += [(h, p) for h in houses for p in pois]
+pairs += [(h, p) for h in houses for p in pois if not p["for"] or p["for"] == h["opt"]]
 
 routes = {}
 for a, b in pairs:

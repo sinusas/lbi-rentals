@@ -77,3 +77,39 @@ function doPost(e) {
   }
   return json_(list_());
 }
+
+/**
+ * ONE-TIME SETUP: creates the "Suggest a house" Google Form and links its
+ * responses to a new tab in this Sheet. In the Apps Script editor pick
+ * createSuggestionForm in the function dropdown and click Run. The form's
+ * share link is printed in the Execution log (and in the Sheet's tab name area).
+ */
+function createSuggestionForm() {
+  const form = FormApp.create("Suggest an LBI rental (Aug 7–14, 2027)");
+  form.setDescription(
+    "Found a house, or a set of houses within walking distance of each other, that we should consider? " +
+    "Only the address is required; fill in whatever else you know. Kevin will add it to the map.");
+  form.setCollectEmail(false);
+  form.setAllowResponseEdits(false);
+  form.setConfirmationMessage("Thanks! It'll show up on the map once it's been checked.");
+
+  form.addTextItem().setTitle("Your name").setRequired(false);
+  form.addParagraphTextItem().setTitle("Address(es)")
+    .setHelpText("One per line if you're suggesting a set of houses. Include the town (Beach Haven, Holgate, …).")
+    .setRequired(true);
+  form.addParagraphTextItem().setTitle("Listing link(s)")
+    .setHelpText("VRBO, agency site, etc. One per line.").setRequired(false);
+  form.addTextItem().setTitle("Bedrooms / sleeps").setHelpText("e.g. 5 bedrooms, sleeps 12").setRequired(false);
+  form.addTextItem().setTitle("Weekly price").setHelpText("e.g. $15,000").setRequired(false);
+  form.addMultipleChoiceItem().setTitle("Available Aug 7–14, 2027?")
+    .setChoiceValues(["Yes, it shows as available", "No, it's booked", "Not sure"])
+    .setRequired(false);
+  form.addParagraphTextItem().setTitle("Notes").setHelpText("Pool, how close to the beach, anything else worth knowing.")
+    .setRequired(false);
+
+  form.setDestination(FormApp.DestinationType.SPREADSHEET, SpreadsheetApp.getActiveSpreadsheet().getId());
+  const url = form.shortenFormUrl(form.getPublishedUrl());
+  Logger.log("Share link: " + url);
+  Logger.log("Edit link: " + form.getEditUrl());
+  return url;
+}

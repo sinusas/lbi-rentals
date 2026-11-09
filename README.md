@@ -15,3 +15,11 @@ The page stores votes and comments in a Google Sheet through a small Apps Script
 4. Copy the **Web app URL** (ends in `/exec`) and paste it into `const FEEDBACK_URL = "";` near the top of the script in `index.html`, then commit and push.
 
 Votes and comments appear as rows in the `votes` and `comments` tabs; delete a row to remove one. If you edit `Code.gs` later, use **Deploy → Manage deployments → Edit → New version** so the URL stays the same.
+
+## "Suggest a house" form (one time)
+
+1. In the Sheet's Apps Script editor, paste the latest `apps-script/Code.gs` and save.
+2. Pick `createSuggestionForm` in the function dropdown and click **Run** (approve the Forms permission).
+3. Copy the "Share link" from the Execution log into `const SUGGEST_URL = "";` in `index.html`.
+
+Suggestions land in a "Form Responses" tab of the same Sheet. Nothing updates the map automatically.
