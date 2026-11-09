@@ -21,8 +21,16 @@
   #map { height: 100%; }
   aside { overflow-y: auto; background: var(--panel); border-left: 1px solid var(--line); padding: 14px 16px 40px; }
   @media (max-width: 800px) {
-    main { grid-template-columns: 1fr; grid-template-rows: 55vh auto; height: auto; }
-    aside { border-left: 0; border-top: 1px solid var(--line); }
+    html, body { height: auto; }
+    header { padding: 10px 16px; }
+    header h1 { font-size: 17px; }
+    main { display: block; height: auto; }
+    /* map stays pinned at the top while the list scrolls underneath */
+    #map { position: sticky; top: 0; z-index: 500; height: 42vh; height: 42svh; border-bottom: 1px solid var(--line); }
+    aside { border-left: 0; overflow: visible; padding: 12px 16px 60px; }
+    .house, section { scroll-margin-top: calc(42svh + 8px); }
+    .links a { display: inline-block; padding: 6px 0; }
+    .jump a { padding: 6px 12px; }
   }
   h2 { font-size: 15px; margin: 18px 0 8px; display: flex; align-items: center; gap: 8px; }
   h2:first-child { margin-top: 0; }
@@ -58,7 +66,9 @@
   .poi { width: 28px; height: 28px; border-radius: 50%; background: #fff; display: grid; place-items: center;
     font-size: 16px; box-shadow: 0 1px 4px rgba(0,0,0,.45); }
   .pois { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13.5px; }
-  .summary { background: #f3efe6; border-radius: 10px; padding: 10px 12px; margin: 4px 0 8px; font-size: 13px; }
+  .summary { background: #f3efe6; border-radius: 10px; padding: 10px 12px; margin: 4px 0 8px; font-size: 13px; overflow-x: auto; }
+  .jump { display: flex; gap: 8px; margin: 12px 0 0; flex-wrap: wrap; font-size: 13.5px; }
+  .jump a { padding: 4px 10px; border-radius: 999px; color: #fff; text-decoration: none; font-weight: 600; }
   .summary.empty { color: var(--muted); }
   .summary .count { margin-bottom: 6px; }
   .summary .warn { color: var(--no); font-weight: 600; }
@@ -220,7 +230,8 @@ const labels = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services
 const satLabeled = L.layerGroup([sat, labels]);
 
 const map = L.map("map", { layers: [satLabeled] });
-L.control.layers({ "Satellite": satLabeled, "Street map": street }, null, { collapsed: false }).addTo(map);
+const narrow = window.matchMedia("(max-width: 800px)").matches;
+L.control.layers({ "Satellite": satLabeled, "Street map": street }, null, { collapsed: narrow }).addTo(map);
 L.control.scale({ imperial: true, metric: false }).addTo(map);
 
 const markers = {};
@@ -339,7 +350,9 @@ const side = document.getElementById("side");
 side.innerHTML =
   `<h2>Points of interest</h2><div class="pois">${POIS.map(p =>
     `<a href="#" data-poi="${p.id}">${p.icon} ${p.name}</a>`).join("")}</div>` +
-  Object.entries(OPTIONS).map(([k, o]) => `<section data-opt="${k}">
+  `<div class="jump">${Object.entries(OPTIONS).map(([k, o]) =>
+    `<a href="#opt-${k}" style="background:${o.hex}">Option ${k}</a>`).join("")}</div>` +
+  Object.entries(OPTIONS).map(([k, o]) => `<section data-opt="${k}" id="opt-${k}">
     <h2><span class="dot" style="background:${o.hex}"></span>${o.name}</h2>
     ${HOUSES.filter(h => h.option === k).map(houseCard).join("")}
     <div id="sum-${k}"></div>
@@ -376,6 +389,13 @@ side.addEventListener("change", e => {
 });
 side.addEventListener("click", e => {
   const a = e.target.closest("a");
+  if (a && a.getAttribute("href")?.startsWith("#opt-")) {
+    e.preventDefault();
+    const k = a.getAttribute("href").slice(5);
+    document.getElementById("opt-" + k).scrollIntoView({ behavior: "smooth" });
+    const hs = HOUSES.filter(h => h.option === k);
+    return map.fitBounds(L.latLngBounds(hs.map(h => [h.lat, h.lng])).pad(0.5), { maxZoom: 18 });
+  }
   if (a && a.dataset.focus) { e.preventDefault(); return focusGroup(a.dataset.focus); }
   if (a && a.dataset.poi) {
     e.preventDefault();
