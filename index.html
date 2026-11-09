@@ -87,6 +87,26 @@
   tr.pair.booked td { text-decoration: line-through; opacity: .5; }
   .leaflet-tooltip.walk { background: rgba(31,42,51,.85); color: #fff; border: 0; font-weight: 600; box-shadow: none; }
   .leaflet-tooltip.walk::before { display: none; }
+  .fb-intro { background: #fff6dc; border: 1px solid #f0dca0; border-radius: 10px; padding: 10px 12px; margin-bottom: 14px; font-size: 13.5px; }
+  .fb-intro label { display: flex; gap: 8px; align-items: center; font-weight: 600; }
+  .fb-intro input { flex: 1; min-width: 0; font: inherit; font-weight: 400; padding: 7px 9px; border: 1px solid var(--line); border-radius: 8px; }
+  .fb-intro input.need { border-color: var(--no); box-shadow: 0 0 0 2px #f5c2bb; }
+  .fb-intro .sub { margin-top: 6px; }
+  .fb { margin-top: 8px; font-size: 13px; }
+  .fb-opt { margin: -2px 0 10px; }
+  .fb-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+  .fb-bar button, .fb-post { font: inherit; border: 1px solid var(--line); background: var(--panel); border-radius: 999px;
+    padding: 5px 11px; cursor: pointer; display: inline-flex; gap: 5px; align-items: center; min-height: 32px; }
+  .fb-bar button span { color: var(--muted); }
+  .fb-vote.on { background: #e6f4ea; border-color: #9fd3b0; }
+  .fb-vote.on span { color: var(--ok); font-weight: 600; }
+  .fb-who { color: var(--muted); font-size: 12px; }
+  .fb-panel { margin-top: 8px; display: grid; gap: 6px; }
+  .fb-c { background: #f6f3ec; border-radius: 8px; padding: 6px 9px; overflow-wrap: anywhere; }
+  .fb-panel textarea { font: inherit; width: 100%; padding: 7px 9px; border: 1px solid var(--line); border-radius: 8px; resize: vertical; }
+  .fb-post { justify-self: start; background: var(--ink); color: #fff; border-color: var(--ink); }
+  .sub { color: var(--muted); font-size: 12px; }
+  .warn { color: var(--no); }
 </style>
 </head>
 <body>
@@ -104,6 +124,9 @@
 // EDIT HOUSE INFO HERE. Leave a field as null to show "TBD".
 // available: true / false / null (unknown)   price: weekly rent in dollars
 // ─────────────────────────────────────────────────────────────────────────────
+// Votes & comments: paste the Apps Script web-app URL here (see README). Empty = feature hidden.
+const FEEDBACK_URL = "";
+
 const OPTIONS = {
   A: { name: "Option A: any 2 of these 4 (north Beach Haven)", hex: "#e0703a", pick: 2 },
   B: { name: "Option B: Dolphin + S Beach (south Beach Haven)", hex: "#2f7fc1", pick: 2 },
@@ -303,6 +326,7 @@ function houseCard(h) {
     </dl>
     ${h.notes ? `<div class="note">${h.notes}</div>` : ""}
     <div class="links">${links}</div>
+    ${FEEDBACK_URL ? `<div class="fb" data-item="house:${h.id}"></div>` : ""}
   </div>`;
 }
 
@@ -348,12 +372,17 @@ function combosTable(k) {
 
 const side = document.getElementById("side");
 side.innerHTML =
+  `<div id="fb-intro" class="fb-intro" hidden>
+     <label>Your name <input id="fb-name" maxlength="40" placeholder="so votes & comments show who" autocomplete="given-name"></label>
+     <div class="sub">Vote 👍 or comment on any option or house. <span id="fb-status" class="warn"></span></div>
+   </div>` +
   `<h2>Points of interest</h2><div class="pois">${POIS.map(p =>
     `<a href="#" data-poi="${p.id}">${p.icon} ${p.name}</a>`).join("")}</div>` +
   `<div class="jump">${Object.entries(OPTIONS).map(([k, o]) =>
     `<a href="#opt-${k}" style="background:${o.hex}">Option ${k}</a>`).join("")}</div>` +
   Object.entries(OPTIONS).map(([k, o]) => `<section data-opt="${k}" id="opt-${k}">
     <h2><span class="dot" style="background:${o.hex}"></span>${o.name}</h2>
+    ${FEEDBACK_URL ? `<div class="fb fb-opt" data-item="option:${k}"></div>` : ""}
     ${HOUSES.filter(h => h.option === k).map(houseCard).join("")}
     <div id="sum-${k}"></div>
     ${combosTable(k)}
@@ -388,6 +417,7 @@ side.addEventListener("change", e => {
   refresh(cb.dataset.opt);
 });
 side.addEventListener("click", e => {
+  if (e.target.closest(".fb, .fb-intro")) return fbClick(e);
   const a = e.target.closest("a");
   if (a && a.getAttribute("href")?.startsWith("#opt-")) {
     e.preventDefault();
@@ -424,6 +454,108 @@ Object.keys(OPTIONS).forEach(k => {
   if (hs.length === OPTIONS[k].pick) hs.forEach(h => selected[k].add(h.id));
   refresh(k);
 });
+
+// ── votes & comments (Google Sheet + Apps Script backend; see apps-script/Code.gs)
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const store = {
+  get(k) { try { return localStorage.getItem(k) || ""; } catch (_) { return ""; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch (_) {} },
+};
+let fbData = { votes: [], comments: [] };
+const fbOpen = new Set();
+let fbError = "";
+
+function myName() { return (document.getElementById("fb-name")?.value || "").trim(); }
+
+function fbHtml(item) {
+  const votes = fbData.votes.filter(v => v.item === item);
+  const comments = fbData.comments.filter(c => c.item === item).sort((a, b) => a.ts - b.ts);
+  const me = myName().toLowerCase();
+  const mine = me && votes.some(v => v.name.toLowerCase() === me);
+  const open = fbOpen.has(item);
+  const fmt = ts => new Date(ts).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  return `<div class="fb-bar">
+      <button type="button" class="fb-vote${mine ? " on" : ""}" data-act="vote">👍 ${votes.length || ""}<span>${mine ? "Voted" : "Vote"}</span></button>
+      <button type="button" class="fb-toggle" data-act="toggle">💬 ${comments.length || ""}<span>${open ? "Hide" : comments.length ? "Comments" : "Comment"}</span></button>
+      ${votes.length ? `<span class="fb-who">${votes.map(v => esc(v.name)).join(", ")}</span>` : ""}
+    </div>
+    ${open ? `<div class="fb-panel">
+      ${comments.map(c => `<div class="fb-c"><b>${esc(c.name)}</b> <span class="sub">${fmt(c.ts)}</span><div>${esc(c.text)}</div></div>`).join("")
+        || '<div class="sub">No comments yet.</div>'}
+      <textarea rows="2" maxlength="1000" placeholder="Add a comment…"></textarea>
+      <button type="button" class="fb-post" data-act="post">Post</button>
+    </div>` : ""}`;
+}
+
+function renderFeedback() {
+  if (!FEEDBACK_URL) return;
+  document.querySelectorAll(".fb[data-item]").forEach(el => {
+    const draft = el.querySelector("textarea")?.value || "";
+    el.innerHTML = fbHtml(el.dataset.item);
+    const ta = el.querySelector("textarea");
+    if (ta) ta.value = draft;
+  });
+  const st = document.getElementById("fb-status");
+  if (st) st.textContent = fbError;
+}
+
+async function fbCall(body) {
+  try {
+    const r = body
+      ? await fetch(FEEDBACK_URL, { method: "POST", body: JSON.stringify(body) })   // text/plain: no CORS preflight
+      : await fetch(FEEDBACK_URL);
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.error || "error");
+    fbData = d; fbError = "";
+  } catch (err) {
+    fbError = "Couldn't reach the comments sheet. Try again in a minute.";
+  }
+  renderFeedback();
+}
+
+function needName() {
+  if (myName()) return false;
+  const inp = document.getElementById("fb-name");
+  inp.classList.add("need"); inp.focus();
+  inp.scrollIntoView({ behavior: "smooth", block: "center" });
+  return true;
+}
+
+function fbClick(e) {
+  const btn = e.target.closest("[data-act]");
+  const box = e.target.closest(".fb[data-item]");
+  if (!btn || !box) return;
+  const item = box.dataset.item, act = btn.dataset.act;
+  if (act === "toggle") { fbOpen.has(item) ? fbOpen.delete(item) : fbOpen.add(item); return renderFeedback(); }
+  if (needName()) return;
+  if (act === "vote") {
+    const me = myName().toLowerCase();
+    const on = !fbData.votes.some(v => v.item === item && v.name.toLowerCase() === me);
+    // optimistic update so the button responds instantly
+    fbData.votes = on ? [...fbData.votes, { item, name: myName() }]
+                      : fbData.votes.filter(v => !(v.item === item && v.name.toLowerCase() === me));
+    renderFeedback();
+    fbCall({ action: "vote", item, name: myName(), on });
+  }
+  if (act === "post") {
+    const ta = box.querySelector("textarea"), text = ta.value.trim();
+    if (!text) return ta.focus();
+    ta.value = ""; btn.disabled = true;
+    fbCall({ action: "comment", item, name: myName(), text });
+  }
+}
+
+if (FEEDBACK_URL) {
+  document.getElementById("fb-intro").hidden = false;
+  const inp = document.getElementById("fb-name");
+  inp.value = store.get("lbi-name");
+  inp.addEventListener("input", () => { inp.classList.remove("need"); store.set("lbi-name", inp.value.trim()); renderFeedback(); });
+  renderFeedback();
+  fbCall();
+  setInterval(() => { if (!document.hidden) fbCall(); }, 60000);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) fbCall(); });
+}
+
 </script>
 </body>
 </html>
