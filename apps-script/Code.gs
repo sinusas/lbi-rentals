@@ -82,7 +82,7 @@ function doPost(e) {
  * ONE-TIME SETUP: creates the "Suggest a house" Google Form and links its
  * responses to a new tab in this Sheet. In the Apps Script editor pick
  * createSuggestionForm in the function dropdown and click Run. The form's
- * share link is printed in the Execution log (and in the Sheet's tab name area).
+ * share link is printed in the Execution log.
  */
 function createSuggestionForm() {
   const form = FormApp.create("Suggest an LBI rental (Aug 7–14, 2027)");
