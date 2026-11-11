@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LBI Summer 2027: All Rentals</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  :root {
+    --bg: #f7f4ee; --panel: #ffffff; --ink: #1f2a33; --muted: #6b7680; --line: #e3ddd2;
+    --ok: #2e8b57; --no: #c0392b; --unk: #7d8a96; --known: #d99a00; --sel: #1f2a33;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink);
+    font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  header { padding: 12px 16px; border-bottom: 1px solid var(--line); background: var(--panel); }
+  header h1 { margin: 0; font-size: 19px; }
+  header p { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
+  header a { color: inherit; }
+  body { display: flex; flex-direction: column; height: 100vh; height: 100dvh; }
+  main { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 430px; }
+  #map { position: relative; z-index: 0; height: 100%; min-width: 0; }
+  aside { min-width: 0; overflow-y: auto; background: var(--panel); border-left: 1px solid var(--line); padding: 0 16px 40px; }
+  @media (max-width: 800px) {
+    html, body { height: auto; }
+    body { display: block; }
+    header { padding: 10px 16px; }
+    header h1 { font-size: 17px; }
+    main { display: block; height: auto; }
+    #map { position: sticky; top: 0; z-index: 500; height: 40vh; height: 40svh; border-bottom: 1px solid var(--line); }
+    aside { border-left: 0; overflow: visible; padding: 0 16px 60px; }
+    .house { scroll-margin-top: calc(40svh + 8px); }
+    .filters { position: static !important; }
+  }
+  .about { font-size: 13px; color: var(--muted); margin: 12px 0 4px; }
+  .about b { color: var(--ink); font-weight: 600; }
+  .filters { position: sticky; top: 0; z-index: 2; background: var(--panel); padding: 10px 0 8px; border-bottom: 1px solid var(--line);
+    display: grid; gap: 8px; font-size: 13.5px; }
+  .row { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }
+  .row label { display: inline-flex; gap: 5px; align-items: center; }
+  select { font: inherit; padding: 4px 6px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--ink); }
+  .chip { font: inherit; font-size: 12.5px; border: 1px solid var(--line); background: var(--panel); color: var(--ink);
+    border-radius: 999px; padding: 4px 10px; cursor: pointer; min-height: 30px; }
+  .chip.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .count { font-size: 13px; color: var(--muted); }
+  .count b { color: var(--ink); }
+  .near { background: #fff6dc; border: 1px solid #f0dca0; border-radius: 10px; padding: 8px 10px; font-size: 13px; display: flex; gap: 8px; align-items: center; }
+  .near button { margin-left: auto; }
+  .house { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin-top: 8px; cursor: pointer;
+    display: grid; grid-template-columns: 1fr auto; gap: 0 10px; }
+  .house:hover { border-color: #bdb5a6; }
+  .house.sel { outline: 2px solid var(--sel); }
+  .house img { width: 92px; height: 70px; object-fit: cover; border-radius: 7px; background: #eee; grid-row: 1 / span 3; grid-column: 2; }
+  .addr { font-weight: 600; }
+  .where { color: var(--muted); font-size: 12.5px; }
+  .facts { font-size: 13.5px; margin-top: 4px; }
+  .facts .price { font-weight: 600; }
+  .tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; grid-column: 1 / -1; }
+  .tag { font-size: 11.5px; border-radius: 999px; padding: 2px 8px; background: #f0ece3; color: #4a5560; }
+  .tag.open { background: #e6f4ea; color: var(--ok); font-weight: 600; }
+  .tag.known { background: #fdf0c8; color: #7a5600; font-weight: 600; }
+  .tag.pool { background: #e2f0fb; color: #22628f; }
+  .tag.dist { background: #fff3c4; color: #6b5400; font-weight: 600; }
+  .more { grid-column: 1 / -1; font-size: 12.5px; color: var(--muted); margin-top: 6px; display: none; }
+  .house.sel .more { display: block; }
+  .links { grid-column: 1 / -1; margin-top: 6px; font-size: 13px; display: flex; flex-wrap: wrap; gap: 4px 12px; }
+  .links a { color: #22628f; }
+  .links button { font: inherit; font-size: 12.5px; border: 1px solid var(--line); background: var(--panel); border-radius: 999px; padding: 3px 10px; cursor: pointer; }
+  .dot { width: 14px; height: 14px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,.45); }
+  .legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; color: var(--muted); }
+  .legend span { display: inline-flex; gap: 5px; align-items: center; }
+  .legend i { width: 11px; height: 11px; border-radius: 50%; display: inline-block; border: 1.5px solid #fff; box-shadow: 0 0 0 1px #0003; }
+  .empty { color: var(--muted); font-size: 13.5px; padding: 16px 0; }
+</style>
+</head>
+<body>
+<header>
+  <h1>LBI rentals: everything we could find</h1>
+  <p>Week of Aug 7–14, 2027 · Holgate to Brant Beach, sleeps 8+ · <a href="../">Sarah's picks</a> · <a href="../ai/">A.I. groups</a></p>
+</header>
+<main>
+  <div id="map"></div>
+  <aside id="side">
+    <p class="about" id="about"></p>
+    <div class="filters">
+      <div class="row">
+        <label>Sleeps <select id="f-sleeps"><option value="8">8+</option><option value="10" selected>10+</option><option value="12">12+</option><option value="14">14+</option></select></label>
+        <label>Up to <select id="f-price"><option value="">any price</option><option value="8000">$8,000</option><option value="12000">$12,000</option><option value="16000">$16,000</option><option value="20000" selected>$20,000</option><option value="25000">$25,000</option></select></label>
+        <label>Sort <select id="f-sort"><option value="price">price</option><option value="sleeps">most sleeps</option><option value="pp">price per bed</option><option value="lat">south → north</option><option value="near">nearest to picked house</option></select></label>
+      </div>
+      <div class="row" id="f-areas"></div>
+      <div class="row">
+        <button class="chip" id="f-open">Open Aug 7–14 only</button>
+        <button class="chip" id="f-pool">Pool</button>
+        <button class="chip" id="f-ocean">Ocean side</button>
+        <button class="chip" id="f-new">Not on our pages yet</button>
+      </div>
+      <div class="legend">
+        <span><i style="background:var(--ok)"></i>Open (Van Dyk calendar)</span>
+        <span><i style="background:var(--unk)"></i>Availability unknown</span>
+        <span><i style="background:var(--known)"></i>Already on our pages</span>
+      </div>
+      <div id="near"></div>
+      <div class="count" id="count"></div>
+    </div>
+    <div id="list"></div>
+  </aside>
+</main>
+<script>
+const AREAS = ["Holgate", "Beach Haven", "North Beach Haven–BH Terrace", "The Dunes–BH Park", "Peahala Park–BH Crest", "Brant Beach"];
+const state = { sleeps: 10, price: 20000, sort: "price", areas: new Set(AREAS), open: false, pool: false, ocean: false, fresh: false, sel: null };
+const fmt = n => "$" + n.toLocaleString("en-US");
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const meters = (a, b) => { const R = 6371000, r = Math.PI / 180, dLat = (b.lat - a.lat) * r, dLng = (b.lng - a.lng) * r;
+  const x = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.sin(dLng / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(x)); };
+// Walking minutes: straight line × 1.3 for the street grid, at 80 m/min
+const walkMin = m => Math.max(1, Math.round(m * 1.3 / 80));
+function side(h) {
+  const k = (h.kind || "").toLowerCase();
+  if (/ocean ?front|beachfront/.test(k)) return "Oceanfront";
+  if (/ocean|oceanside/.test(k)) return "Ocean side";
+  if (/bay ?front|lagoon/.test(k)) return "Bayfront";
+  if (/bay/.test(k)) return "Bay side";
+  return null;
+}
+function onPages(h) {
+  if (!h.on) return null;
+  const p = [];
+  if (h.on.main) p.push(`Sarah's option ${h.on.main}`);
+  if (h.on.ai && h.on.ai !== h.on.main) p.push(`A.I. option ${h.on.ai}`);
+  return p.join(" · ");
+}
+const color = h => h.on ? "var(--known)" : h.available ? "var(--ok)" : "var(--unk)";
+const hex = h => h.on ? "#d99a00" : h.available ? "#2e8b57" : "#7d8a96";
+
+let HOUSES = [], markers = new Map();
+const map = L.map("map", { zoomControl: true }).setView([39.565, -74.235], 13);
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "© OpenStreetMap" }).addTo(map);
+let ring = null;
+
+function passes(h) {
+  if ((h.sleeps || 0) < state.sleeps) return false;
+  if (state.price && h.price && h.price > state.price) return false;
+  if (state.price && !h.price) return false;
+  if (!state.areas.has(h.area)) return false;
+  if (state.open && !h.available) return false;
+  if (state.pool && !h.pool) return false;
+  if (state.ocean && !/^Ocean/.test(side(h) || "")) return false;
+  if (state.fresh && h.on) return false;
+  return true;
+}
+
+function card(h, d) {
+  const where = [h.village && h.village !== h.area ? h.village : h.area, side(h)].filter(Boolean).join(" · ");
+  const tags = [];
+  if (h.available) tags.push(`<span class="tag open">Open Aug 7–14 on Van Dyk's calendar</span>`);
+  if (h.on) tags.push(`<span class="tag known">On our pages: ${esc(onPages(h))}</span>`);
+  if (h.pool) tags.push(`<span class="tag pool">Pool</span>`);
+  if (d != null) tags.push(`<span class="tag dist">~${walkMin(d)} min walk</span>`);
+  if (h.approx) tags.push(`<span class="tag" title="The map pin could be off by a few blocks">pin approximate</span>`);
+  const links = [`<a href="${esc(h.url)}" target="_blank" rel="noopener">${esc(h.src)} listing</a>`]
+    .concat((h.also || []).map(a => `<a href="${esc(a.url)}" target="_blank" rel="noopener">${esc(a.src)} listing${a.price && a.price !== h.price ? " (" + fmt(a.price) + ")" : ""}</a>`));
+  links.push(`<button data-near="${h.i}">Houses near this one</button>`);
+  const baths = h.baths ? ` · ${h.baths} ba` : "";
+  return `<div class="house${state.sel === h.i ? " sel" : ""}" data-i="${h.i}">
+    <div><div class="addr">${esc(h.addr)}</div><div class="where">${esc(where)}</div>
+    <div class="facts"><span class="price">${h.price ? fmt(h.price) + "/wk" : '<span class="where">price not listed</span>'}</span> · ${h.bedrooms ?? "?"} bd${baths} · sleeps ${h.sleeps}</div></div>
+    ${h.photo ? `<img src="${esc(h.photo)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : ""}
+    <div class="tags">${tags.join("")}</div>
+    ${h.desc ? `<div class="more">${esc(h.desc)}${h.desc.length >= 690 ? "…" : ""}</div>` : ""}
+    <div class="links">${links.join("")}</div>
+  </div>`;
+}
+
+function render() {
+  const anchor = state.sel != null ? HOUSES[state.sel] : null;
+  let rows = HOUSES.filter(passes).map(h => ({ h, d: anchor && h !== anchor ? meters(anchor, h) : null }));
+  const by = {
+    price: (a, b) => (a.h.price ?? 1e9) - (b.h.price ?? 1e9),
+    sleeps: (a, b) => b.h.sleeps - a.h.sleeps || (a.h.price ?? 1e9) - (b.h.price ?? 1e9),
+    pp: (a, b) => (a.h.price ? a.h.price / a.h.sleeps : 1e9) - (b.h.price ? b.h.price / b.h.sleeps : 1e9),
+    lat: (a, b) => a.h.lat - b.h.lat,
+    near: (a, b) => (a.d ?? -1) - (b.d ?? -1),
+  }[state.sort === "near" && !anchor ? "price" : state.sort];
+  rows.sort(by);
+  if (state.sort === "near" && anchor) {   // keep the picked house first even if filtered out
+    rows = rows.filter(r => r.h !== anchor); rows.unshift({ h: anchor, d: null });
+  }
+  const shown = new Set(rows.map(r => r.h.i));
+  for (const [i, m] of markers) {
+    if (shown.has(i)) m.addTo(map); else m.remove();
+    m.setStyle({ weight: i === state.sel ? 4 : 2, color: i === state.sel ? "#1f2a33" : "#fff" });
+  }
+  const open = rows.filter(r => r.h.available).length;
+  document.getElementById("count").innerHTML = `<b>${rows.length}</b> of ${HOUSES.length} houses match · ${open} confirmed open`;
+  document.getElementById("near").innerHTML = anchor && state.sort === "near"
+    ? `<div class="near">Sorted by walking distance from <b>${esc(anchor.addr)}</b><button class="chip" id="near-off">Clear</button></div>` : "";
+  const nb = document.getElementById("near-off");
+  if (nb) nb.onclick = () => { state.sort = "price"; document.getElementById("f-sort").value = "price"; render(); };
+  document.getElementById("list").innerHTML = rows.length ? rows.map(r => card(r.h, r.d)).join("")
+    : `<p class="empty">Nothing matches. Try a higher price or fewer filters.</p>`;
+  if (ring) { ring.remove(); ring = null; }
+  if (anchor) ring = L.circle([anchor.lat, anchor.lng], { radius: 400, color: "#1f2a33", weight: 1, dashArray: "4 4", fillOpacity: .04, interactive: false }).addTo(map);
+}
+
+function pick(i, { scroll = true, pan = false } = {}) {
+  state.sel = state.sel === i && !pan ? null : i;
+  render();
+  if (state.sel == null) return;
+  const h = HOUSES[i];
+  if (pan) map.panTo([h.lat, h.lng]);
+  const el = document.querySelector(`.house[data-i="${i}"]`);
+  if (el && scroll) el.scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+document.getElementById("list").addEventListener("click", e => {
+  const nearBtn = e.target.closest("[data-near]");
+  if (nearBtn) {
+    state.sel = +nearBtn.dataset.near; state.sort = "near"; document.getElementById("f-sort").value = "near";
+    render(); const h = HOUSES[state.sel]; map.setView([h.lat, h.lng], 16);
+    document.getElementById("side").scrollTo?.({ top: 0, behavior: "smooth" });
+    document.querySelector(".filters").scrollIntoView({ behavior: "smooth", block: "start" });
+    return;
+  }
+  if (e.target.closest("a")) return;
+  const c = e.target.closest(".house");
+  if (c) pick(+c.dataset.i, { scroll: false, pan: true });
+});
+
+const bind = (id, key, conv = v => v) => document.getElementById(id).onchange = e => { state[key] = conv(e.target.value); render(); };
+bind("f-sleeps", "sleeps", Number);
+bind("f-price", "price", v => v ? Number(v) : null);
+bind("f-sort", "sort");
+for (const [id, key] of [["f-open", "open"], ["f-pool", "pool"], ["f-ocean", "ocean"], ["f-new", "fresh"]]) {
+  const b = document.getElementById(id);
+  b.onclick = () => { state[key] = !state[key]; b.classList.toggle("on", state[key]); render(); };
+}
+const areaBox = document.getElementById("f-areas");
+areaBox.innerHTML = AREAS.map(a => `<button class="chip on" data-a="${a}">${a}</button>`).join("");
+areaBox.onclick = e => {
+  const b = e.target.closest("[data-a]"); if (!b) return;
+  const a = b.dataset.a;
+  // First tap narrows to just that area; later taps add/remove
+  if (state.areas.size === AREAS.length) state.areas = new Set([a]);
+  else if (state.areas.has(a)) { state.areas.delete(a); if (!state.areas.size) state.areas = new Set(AREAS); }
+  else state.areas.add(a);
+  areaBox.querySelectorAll("[data-a]").forEach(x => x.classList.toggle("on", state.areas.has(x.dataset.a)));
+  render();
+};
+
+fetch("houses.json").then(r => r.json()).then(d => {
+  HOUSES = d.houses.map((h, i) => ({ ...h, i }));
+  const nOpen = HOUSES.filter(h => h.available).length;
+  const date = new Date(d.updated + "T12:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  document.getElementById("about").innerHTML =
+    `Every listing sleeping 8+ from <b>lbi.vacations</b> (all of it) and <b>Van Dyk Group</b> (only houses its calendar shows open Aug 7–14), as of ${date}. ` +
+    `Collected by Claude (an A.I.) and not checked by anyone. Prices are the listed weekly rate. ${nOpen} houses are confirmed open; for the rest, ask the agency. ` +
+    `Other agencies (VRBO, vacationrentalslbi.com…) aren't included. Tap a house, then <b>Houses near this one</b> to find groups within walking distance.`;
+  for (const h of HOUSES) {
+    const m = L.circleMarker([h.lat, h.lng], { radius: 7, fillColor: hex(h), fillOpacity: .95, color: "#fff", weight: 2 })
+      .bindTooltip(`${esc(h.addr)} · ${h.price ? fmt(h.price) : "?"} · sleeps ${h.sleeps}`, { direction: "top" })
+      .on("click", () => pick(h.i));
+    markers.set(h.i, m);
+  }
+  render();
+  map.fitBounds(L.latLngBounds(HOUSES.map(h => [h.lat, h.lng])), { padding: [20, 20] });
+});
+</script>
+</body>
+</html>

@@ -4,6 +4,7 @@ Map of rental options in Beach Haven and Holgate (Long Beach Island, NJ) for the
 
 - `index.html` is the main page (Sarah's picks). `ai/index.html` is a separate page at `/lbi-rentals/ai/` that adds the A.I.'s (unchecked) search results; it is not linked from the main page.
 - Each page is self-contained. House details are in the `HOUSES` list near the top of the script.
+- `all/index.html` (`/lbi-rentals/all/`) lists every south-LBI rental sleeping 8+ that could be scraped: all of lbi.vacations plus Van Dyk Group houses its calendar shows open Aug 7–14. Data is in `all/houses.json`; refresh it with `python3 build_all.py --fresh` (raw pages cache in `.cache/`, which is git-ignored).
 - `build_routes.py` refetches the walking/bike/drive routes (OpenStreetMap routing) after you add or move a house or point of interest: `python3 build_routes.py` (or `python3 build_routes.py ai/index.html` for the A.I. page)
 
 ## Votes & comments setup (one time)
